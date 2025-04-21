@@ -1,19 +1,19 @@
 import PySpice.Logging.Logging as Logging
 logger = Logging.setup_logging()
 import networkx as nx
-from utilits.line_element import TransmissionLine as LineCircuit
+from utilits.transmission_line import TransmissionLine as LineCircuit
 from PySpice.Spice.Netlist import Circuit
 from PySpice.Unit import *
 
 from collections import defaultdict, OrderedDict, deque
 import numpy as np
-from utilits.circuit_utils import get_inductors_and_capacitors, get_element_nodes_dict, get_node_connections
+from utilits.circuit_tools import get_inductors_and_capacitors, get_element_nodes_dict, get_node_connections
 from itertools import combinations
 from scipy.integrate import odeint
 from sympy import *
 import matplotlib.pyplot as plt
-from utilits.circuit_equations import generate_circuit_equations
-from utilits.plot_utils import plot_ode_system_solution
+from utilits.equation_generator import generate_circuit_equations
+from utilits.plotting import plot_ode_system_solution
 
 
 def find_junction_nodes(graph: dict) -> list | int:
