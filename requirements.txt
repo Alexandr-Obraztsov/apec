@@ -1,0 +1,6 @@
+PySpice==1.5
+numpy==1.26.4
+scipy==1.15.2
+matplotlib==3.10.1
+networkx==3.3
+sympy==1.12.1 
