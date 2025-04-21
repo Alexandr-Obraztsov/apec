@@ -7,54 +7,13 @@ from PySpice.Unit import *
 
 from collections import defaultdict, OrderedDict, deque
 import numpy as np
-from utilits.circuit_tools import get_inductors_and_capacitors, get_element_nodes_dict, get_node_connections
+from utilits.circuit_tools import get_inductors_and_capacitors, get_element_nodes_dict, get_node_connections, find_junction_nodes, find_single_path, find_all_paths_between_nodes, assign_branch_names, calculate_branches, substitute_element_values
 from itertools import combinations
 from scipy.integrate import odeint
 from sympy import *
 import matplotlib.pyplot as plt
 from utilits.equation_generator import generate_circuit_equations
 from utilits.plotting import plot_ode_system_solution
-
-
-def find_junction_nodes(graph: dict) -> list | int:
-    """
-    Находит вершины в графе, из которых выходит более двух рёбер.
-
-    Аргументы:
-        graph (dict): Словарь, представляющий граф, где ключ — вершина, значение — список смежных вершин.
-
-    Возвращает:
-        list: Список вершин, являющихся соединительными узлами (более двух рёбер).
-        int: 0, если таких вершин нет.
-    """
-    junction_nodes = []
-    for node in graph.keys():
-        if len(graph[node]) > 2:
-            junction_nodes.append(node)
-    return junction_nodes if junction_nodes else 0
-
-
-def find_single_path(graph_in: dict) -> list:
-    """
-    Находит единственный путь, проходящий через все вершины графа.
-
-    Аргументы:
-        graph_in (dict): Словарь, представляющий граф, где ключ — вершина, значение — список смежных вершин.
-
-    Возвращает:
-        list: Список вершин, представляющий путь через все вершины графа.
-    """
-    path = [0]
-    graph = defaultdict(set)
-    for key, values in graph_in.items():
-        graph[int(key)] = {int(value) for value in values}
-    while len(path) < len(graph):
-        neighbors = graph[path[-1]]
-        next_node = next(iter(neighbors - set(path)), None)
-        if next_node is None:
-            raise ValueError("Граф не связный")
-        path.append(next_node)
-    return [str(node) for node in path]
 
 
 def input_initial_conditions(lc_elements: list, voltages: dict) -> dict:
@@ -75,97 +34,6 @@ def input_initial_conditions(lc_elements: list, voltages: dict) -> dict:
         else:
             initial_conditions[f"I_{element}"] = float(input(f"Введите значение {element} до коммутации: "))
     return initial_conditions
-
-
-def find_all_paths_between_nodes(graph: dict, start: str, end: str, path: list = None) -> list:
-    """
-    Находит все возможные пути между двумя узлами в графе.
-
-    Аргументы:
-        graph (dict): Словарь, представляющий граф.
-        start (str): Начальная вершина.
-        end (str): Конечная вершина.
-        path (list, optional): Текущий путь (для рекурсии).
-
-    Возвращает:
-        list: Список всех возможных путей (каждый путь — список вершин).
-    """
-    if path is None:
-        path = []
-    path = path + [start]
-    if start == end:
-        return [path]
-    if start not in graph:
-        return []
-    paths = []
-    for node in graph[start]:
-        if node not in path:
-            new_paths = find_all_paths_between_nodes(graph, node, end, path)
-            for new_path in new_paths:
-                if end in new_path:
-                    paths.append(new_path)
-    return paths
-
-
-def assign_branch_names(branches: list, nodes_list: dict) -> dict:
-    """
-    Присваивает имена ветвям на основе списка узлов.
-
-    Аргументы:
-        branches (list): Список ветвей (каждая ветвь — список узлов).
-        nodes_list (dict): Словарь с информацией об узлах элементов.
-
-    Возвращает:
-        dict: Словарь, где ключ — имя ветви, значение — список узлов ветви.
-    """
-    branch_names = {}
-    for branch in branches:
-        for i in range(len(branch) - 1):
-            pos1 = branch[i]
-            pos2 = branch[i + 1]
-            name = ""
-            for key, value in nodes_list.items():
-                if sorted(value[0] + value[1]) == sorted(pos1 + pos2):
-                    if "X" in key:
-                        break
-                    elif "R" in key or "V" in key:
-                        name = f"I_{key}"
-                        break
-                    elif "C" in key or "L" in key:
-                        name = f"I_{key}"
-                        if branch in branch_names.values():
-                            branch_names = {name if v == branch else k: v for k, v in branch_names.items()}
-                        else:
-                            branch_names[name] = branch
-                        break
-            if branch not in branch_names.values():
-                branch_names[name] = branch
-    return branch_names
-
-
-def calculate_branches(nodes_list: dict, connection_list: dict) -> dict:
-    """
-    Вычисляет ветви схемы на основе списка узлов и соединений.
-
-    Аргументы:
-        nodes_list (dict): Словарь с информацией об узлах элементов.
-        connection_list (dict): Словарь соединений между узлами.
-
-    Возвращает:
-        dict: Словарь ветвей схемы.
-    """
-    branches = []
-    nodes = find_junction_nodes(connection_list)
-    if nodes == 0:
-        branches.append(find_single_path(connection_list) + ['0'])
-        branches = assign_branch_names(branches, nodes_list)
-    else:
-        node_combinations = list(combinations(nodes, 2))
-        node_combinations = [comb for comb in node_combinations if (comb[1], comb[0]) not in node_combinations]
-        for comb in node_combinations:
-            branches += find_all_paths_between_nodes(connection_list, comb[0], comb[1])
-        branches = assign_branch_names(branches, nodes_list)
-    return branches
 
 
 def calculate_voltages(currents: dict, nodes_list: dict) -> dict:
@@ -201,30 +69,6 @@ def calculate_voltages(currents: dict, nodes_list: dict) -> dict:
                     voltages[f"-U_{key}"] = node_pair
                     break
     return voltages
-
-
-def substitute_element_values(formula: str, nodes: dict) -> str:
-    """
-    Подставляет численные значения элементов в формулу.
-
-    Аргументы:
-        formula (str): Формула для подстановки значений.
-        nodes (dict): Словарь с информацией об элементах и их значениях.
-
-    Возвращает:
-        str: Формула с подставленными значениями.
-    """
-    formula = str(formula)
-    for key, val in nodes.items():
-        if "X" in key:
-            continue
-        elif "V" in key and key in str(formula):
-            formula = formula.replace(f"U_{key}", str(val[2]))
-        else:
-            if key in formula:
-                formula = formula.replace(key, str(val[2]))
-                formula = formula.replace(f"_{val[2]}", f"_{key}")
-    return formula
 
 
 def generate_equations_for_circuit(currents: dict, voltages: dict, need_to_find: list, nodes_list: dict, state_variables: list) -> None:
