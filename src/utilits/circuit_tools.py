@@ -219,5 +219,37 @@ def substitute_element_values(formula: str, nodes: dict) -> str:
                 formula = formula.replace(key, str(val[2]))
                 formula = formula.replace(f"_{val[2]}", f"_{key}")
     return formula
+
+def calculate_voltages(currents: dict, nodes_list: dict) -> dict:
+    """
+    Вычисляет напряжения на элементах схемы по токам и списку узлов.
+    Аргументы:
+        currents (dict): Словарь токов в ветвях.
+        nodes_list (dict): Словарь с информацией об узлах элементов.
+    Возвращает:
+        dict: Словарь напряжений на элементах.
+    """
+    voltages = {}
+    for key, value in nodes_list.items():
+        if "X" in key:
+            continue
+        node_pair = [value[0], value[1]]
+        if "V" in key:
+            for branch in currents.values():
+                if any(node_pair == branch[::-1][i:i+len(node_pair)] for i in range(len(branch[::-1]) - len(node_pair) + 1)):
+                    voltages[f"U_{key}"] = node_pair
+                    break
+                elif any(node_pair == branch[i:i+len(node_pair)] for i in range(len(branch) - len(node_pair) + 1)):
+                    voltages[f"-U_{key}"] = node_pair
+                    break
+        else:
+            for branch in currents.values():
+                if any(node_pair == branch[i:i+len(node_pair)] for i in range(len(branch) - len(node_pair) + 1)):
+                    voltages[f"U_{key}"] = node_pair
+                    break
+                elif any(node_pair == branch[::-1][i:i+len(node_pair)] for i in range(len(branch[::-1]) - len(node_pair) + 1)):
+                    voltages[f"-U_{key}"] = node_pair
+                    break
+    return voltages
     
 
